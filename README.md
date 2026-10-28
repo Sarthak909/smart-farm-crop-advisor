@@ -71,7 +71,7 @@ python -m pip install -r requirements.txt
 pytest -q
 ```
 
-`.github/workflows/ci.yml` runs the checks and builds the Docker image on pushes to `main`/`master`, pull requests, and manual dispatch.
+`.github/workflows/ci.yml` runs the checks, builds and starts the Docker image, then smoke-tests `/health`, `/model-info`, and `/predict` on pushes to `main`/`master`, pull requests, and manual dispatch.
 
 ## Repository layout
 

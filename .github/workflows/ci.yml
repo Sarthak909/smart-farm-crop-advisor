@@ -25,3 +25,43 @@ jobs:
         run: pytest -q
       - name: Build Docker image
         run: docker build -t smart-farm-crop-advisor:${{ github.sha }} .
+      - name: Start container
+        run: docker run --detach --name smart-farm-api --publish 8000:8000 smart-farm-crop-advisor:${{ github.sha }}
+      - name: Smoke test live API endpoints
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          import urllib.error
+          import urllib.request
+          import pandas as pd
+
+          base = "http://127.0.0.1:8000"
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen(base + "/health", timeout=2) as response:
+                      assert json.load(response)["status"] == "ok"
+                  break
+              except (OSError, urllib.error.URLError):
+                  if attempt == 29:
+                      raise
+                  time.sleep(2)
+
+          with urllib.request.urlopen(base + "/model-info") as response:
+              info = json.load(response)
+          sample = pd.read_csv("data/Crop_recommendationV2.csv").drop(columns="label").iloc[0].to_dict()
+          request = urllib.request.Request(
+              base + "/predict",
+              data=json.dumps(sample).encode(),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request) as response:
+              prediction = json.load(response)
+          assert prediction["crop"] in info["classes"]
+          assert len(prediction["alternatives"]) == 3
+          print({"health": "ok", "prediction": prediction})
+          PY
+      - name: Remove container
+        if: always()
+        run: docker rm --force smart-farm-api || true
